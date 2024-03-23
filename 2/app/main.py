@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, status
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from database import Base, ArticleSchema, CategorySchema
@@ -12,7 +12,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-@app.post("/articles/", response_model=ArticleModelResponse)
+@app.post("/articles/", response_model=ArticleModelResponse, status_code=status.HTTP_201_CREATED)
 def create_article(article: ArticleModelCommand):
     db = SessionLocal()
     db_article = ArticleSchema(**article.dict())
@@ -42,7 +42,7 @@ def get_article(article_id: int):
     db_article = db.query(ArticleSchema).filter(ArticleSchema.id == article_id).first()
     db.close()
     if db_article is None:
-        raise HTTPException(status_code=404, detail="Article not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
     return db_article
 
 @app.put("/articles/{article_id}", response_model=ArticleModelResponse)
@@ -50,7 +50,7 @@ def update_article(article_id: int, article: ArticleModelCommand):
     db = SessionLocal()
     db_article = db.query(ArticleSchema).filter(ArticleSchema.id == article_id).first()
     if db_article is None:
-        raise HTTPException(status_code=404, detail="Article not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
     for var, value in vars(article).items():
         setattr(db_article, var, value)
     db.commit()
@@ -58,19 +58,18 @@ def update_article(article_id: int, article: ArticleModelCommand):
     db.close()
     return db_article
 
-@app.delete("/articles/{article_id}")
+@app.delete("/articles/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_article(article_id: int):
     db = SessionLocal()
     db_article = db.query(ArticleSchema).filter(ArticleSchema.id == article_id).first()
     if db_article is None:
         db.close()
-        raise HTTPException(status_code=404, detail="Article not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
     db.delete(db_article)
     db.commit()
     db.close()
-    return {"message": "Article deleted successfully"}
 
-@app.post("/categories/", response_model=CategoryModelResponse)
+@app.post("/categories/", response_model=CategoryModelResponse, status_code=status.HTTP_201_CREATED)
 def create_category(category: CategoryModelCommand):
     db = SessionLocal()
     db_category = CategorySchema(**category.dict())
@@ -80,19 +79,13 @@ def create_category(category: CategoryModelCommand):
     db.close()
     return db_category
 
-
-
 def get_categories_with_subcategories(db, parent_id=None):
     categories = db.query(CategorySchema).filter(CategorySchema.parent_id == parent_id).all()
     categories_list = []
     for category in categories:
-        
         category_model = CategoryModelResponseSub.from_orm(category)
-        
         category_model.subCategories = get_categories_with_subcategories(db, category.id)
-        
         categories_list.append(category_model)
-      
     return categories_list
 
 @app.get("/categories/", response_model=List[CategoryModelResponseSub])
@@ -103,12 +96,12 @@ def get_categories():
     return categories_list
 
 @app.get("/categories/{category_id}", response_model=CategoryModelResponse)
-def get_article(category_id: int):
+def get_category(category_id: int):
     db = SessionLocal()
     db_category = db.query(CategorySchema).filter(CategorySchema.id == category_id).first()
     db.close()
     if db_category is None:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
     return db_category
 
 if __name__ == "__main__":
